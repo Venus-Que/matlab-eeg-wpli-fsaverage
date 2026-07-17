@@ -1,4 +1,4 @@
-%% 单条记录：计算wPLI并生成fsaverage三维图
+%% 单条记录：计算delta/theta/alpha/beta wPLI并生成fsaverage三维图
 
 clear;
 clc;

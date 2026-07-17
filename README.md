@@ -17,7 +17,7 @@ English summary: [README_EN.md](README_EN.md)
 - 固定随机种子选择相同数量的合格试次。
 - 减去跨试次诱发平均，降低共同事件锁定成分。
 - 使用DPSS多窗频谱和FieldTrip `wpli_debiased`。
-- 输出theta（4-8 Hz）和alpha（8-13 Hz）连接矩阵，矩阵大小与EEG导数一致。
+- 输出delta（1-4 Hz）、theta（4-8 Hz）、alpha（8-13 Hz）和beta（13-30 Hz）连接矩阵，矩阵大小与EEG导数一致。
 - 输出矩阵图、二维网络图和fsaverage三维投影图。
 - 批处理支持扫描、预实验、全量运行、断点续跑及错误记录。
 - 59导记录可以生成59x59矩阵和图片，图标题及CSV会标注“仅个体展示”。
@@ -120,9 +120,13 @@ overwrite_existing = false;
 | 峰峰值阈值 | 500 uV | 任一通道超阈值则剔除整试次 |
 | 固定试次数 | 6 | 预实验设置，正式研究前必须评估可靠性 |
 | 频谱方法 | DPSS multitaper | `mtmfft`，1 Hz平滑半带宽 |
-| theta | 4-8 Hz | 含边界频点 |
-| alpha | 8-13 Hz | 含边界频点 |
+| delta | 1-4 Hz | 1 Hz纳入，4 Hz归入theta |
+| theta | 4-8 Hz | 4 Hz纳入，8 Hz归入alpha |
+| alpha | 8-13 Hz | 8 Hz纳入，13 Hz归入beta |
+| beta | 13-30 Hz | 13 Hz和30 Hz均纳入 |
 | 连接方法 | `wpli_debiased` | 去偏平方wPLI，不是普通wPLI |
+
+四个频段使用左闭右开的频点分配规则，最后一个beta频段包含30 Hz。因此边界频点只进入一个频段，不会在相邻频段中重复计算。DPSS频谱平滑仍会使边界附近信息存在一定混合，解释窄频段差异时需保守。
 
 ## 输出
 
@@ -134,6 +138,10 @@ sub-001_phase1_O_去偏平方wPLI.png
 sub-001_phase1_O_去偏平方wPLI_fsaverage脑表面.png
 sub-001_phase1_O_去偏平方wPLI_fsaverage节点映射.mat
 ```
+
+MAT文件同时保存`delta_matrix`、`theta_matrix`、`alpha_matrix`和`beta_matrix`，并保留旧版下游程序常用的`theta_matrix`、`alpha_matrix`变量名。二维PNG上排为四个连接矩阵，下排为四个最强连接网络；fsaverage PNG为2×2四频段脑表面图。
+
+从v0.1.x升级后，旧MAT只有theta/alpha。批处理会检查四个矩阵字段；即使`overwrite_existing=false`，旧双频段结果也会自动重新计算，不会被误判为完整结果。
 
 批处理另生成进度表和最终汇总表，记录成功、失败、已有结果跳过、59导个体展示及不支持导数跳过。
 

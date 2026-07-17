@@ -11,10 +11,14 @@ the strongest connections on the FreeSurfer fsaverage cortical surface.
 - Event-locked 0.5-2.5 s epochs.
 - Peak-to-peak trial rejection and deterministic trial selection.
 - DPSS multitaper Fourier estimates.
-- Theta (4-8 Hz) and alpha (8-13 Hz) matrices.
+- Delta (1-4 Hz), theta (4-8 Hz), alpha (8-13 Hz), and beta (13-30 Hz) matrices.
 - Matrix, 2-D network and fsaverage projection figures.
 - Batch scan, pilot, resume and failure reporting.
 - 59-channel results are generated with an explicit individual-display-only warning; unsupported channel counts are skipped.
+
+Band-edge bins are assigned once: intervals are lower-inclusive and
+upper-exclusive, except beta includes 30 Hz. Existing v0.1.x theta/alpha MAT
+files are detected as incomplete and recomputed by the batch pipeline.
 
 ## Important limitation
 

@@ -10,7 +10,7 @@ function [png_path, mapping_path] = render_one_wpli_fsaverage( ...
 %   fieldtrip_dir   - FieldTrip根目录；已加载时可传空字符串。
 %
 % 输出参数：
-%   png_path     - theta/alpha双面板三维脑表面PNG。
+%   png_path     - 四频段三维脑表面PNG；旧双频段MAT仍可绘制。
 %   mapping_path - standard_1005电极到fsaverage表面的可视化映射。
 %
 % 解释边界：这是传感器空间网络的fsaverage投影可视化，不是源空间wPLI。
@@ -44,11 +44,23 @@ end
 
 %% 3. 读取wPLI结果和通道标签
 result = load(result_mat);
-required_fields = {'theta_matrix', 'alpha_matrix', 'params'};
+required_fields = {'params'};
 for k = 1:numel(required_fields)
     assert(isfield(result, required_fields{k}), ...
         '结果MAT缺少变量：%s', required_fields{k});
 end
+
+
+all_band_names = {'delta', 'theta', 'alpha', 'beta'};
+all_band_ranges_hz = [1 4; 4 8; 8 13; 13 30];
+available_band_mask = false(size(all_band_names));
+for band_idx = 1:numel(all_band_names)
+    available_band_mask(band_idx) = isfield(result, ...
+        [all_band_names{band_idx}, '_matrix']);
+end
+band_names = all_band_names(available_band_mask);
+band_ranges_hz = all_band_ranges_hz(available_band_mask, :);
+assert(~isempty(band_names), '结果MAT中没有可识别的频段矩阵。');
 
 if isfield(result, 'channel_labels')
     channel_labels = result.channel_labels;
@@ -69,6 +81,13 @@ if n_channels == 59
 else
     channel_title = '64导';
     title_color = [0.10, 0.10, 0.10];
+end
+for band_idx = 1:numel(band_names)
+    matrix_field = [band_names{band_idx}, '_matrix'];
+    current_size = size(result.(matrix_field));
+    assert(isequal(current_size, [n_channels, n_channels]), ...
+        '%s尺寸为%s，与%d个通道不一致。', ...
+        matrix_field, mat2str(current_size), n_channels);
 end
 
 %% 4. 读取standard_1005标准电极位置
@@ -107,22 +126,33 @@ brain_center = (min(brain_vertices, [], 1) + max(brain_vertices, [], 1)) ./ 2;
 node_pos = project_electrodes_to_surface(electrode_pos, ...
     brain_vertices, brain_center);
 
-%% 7. 绘制theta和alpha三维脑网络
-fig = figure('Color', 'w', 'Position', [80 80 1600 760], ...
+%% 7. 绘制可用频段的三维脑网络
+n_bands = numel(band_names);
+if n_bands <= 2
+    n_rows = 1;
+    n_columns = n_bands;
+    figure_height = 760;
+else
+    n_rows = 2;
+    n_columns = 2;
+    figure_height = 1180;
+end
+fig = figure('Color', 'w', 'Position', [60 40 1600 figure_height], ...
     'Renderer', 'opengl');
-layout = tiledlayout(fig, 1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+layout = tiledlayout(fig, n_rows, n_columns, ...
+    'TileSpacing', 'compact', 'Padding', 'compact');
 
-ax1 = nexttile(layout);
-draw_brain_network(ax1, plot_vertices, plot_faces, node_pos, ...
-    result.theta_matrix, n_edges_to_plot, brain_center);
-title(ax1, sprintf('theta 4-8 Hz：fsaverage皮层上的最强%d条连接', ...
-    n_edges_to_plot), 'FontSize', 13);
-
-ax2 = nexttile(layout);
-draw_brain_network(ax2, plot_vertices, plot_faces, node_pos, ...
-    result.alpha_matrix, n_edges_to_plot, brain_center);
-title(ax2, sprintf('alpha 8-13 Hz：fsaverage皮层上的最强%d条连接', ...
-    n_edges_to_plot), 'FontSize', 13);
+for band_idx = 1:n_bands
+    current_name = band_names{band_idx};
+    matrix_field = [current_name, '_matrix'];
+    current_matrix = result.(matrix_field);
+    current_ax = nexttile(layout);
+    draw_brain_network(current_ax, plot_vertices, plot_faces, node_pos, ...
+        current_matrix, n_edges_to_plot, brain_center);
+    title(current_ax, sprintf('%s %.0f-%.0f Hz：最强%d条连接', ...
+        current_name, band_ranges_hz(band_idx, 1), ...
+        band_ranges_hz(band_idx, 2), n_edges_to_plot), 'FontSize', 13);
+end
 rotate3d(fig, 'on');
 
 [~, result_name] = fileparts(result_mat);
@@ -135,7 +165,7 @@ png_path = fullfile(output_dir, [result_name, '_fsaverage脑表面.png']);
 mapping_path = fullfile(output_dir, [result_name, '_fsaverage节点映射.mat']);
 exportgraphics(fig, png_path, 'Resolution', 220);
 save(mapping_path, 'node_pos', 'channel_labels', 'electrode_pos', ...
-    'brain_center', 'n_edges_to_plot');
+    'brain_center', 'n_edges_to_plot', 'band_names', 'band_ranges_hz');
 
 fprintf('\nfsaverage脑网络图已生成：\n%s\n', png_path);
 fprintf('节点映射已保存：\n%s\n', mapping_path);

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 - 2026-07-17
+
+- Expanded spectral connectivity from theta/alpha to delta, theta, alpha and beta.
+- Assigned 4, 8 and 13 Hz boundary bins to one band only.
+- Added four-band matrix, 2-D network and 2-by-2 fsaverage figures.
+- Kept the legacy theta/alpha MAT variable names and added structured four-band outputs.
+- Added batch detection of v0.1.x two-band results so they are recomputed instead of skipped.
+
 ## 0.1.3 - 2026-07-15
 
 - Clarified that native 59-channel and 64-channel montages are preserved without padding, deletion or connectivity-matrix interpolation.

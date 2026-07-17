@@ -1,4 +1,4 @@
-%% 多人wPLI与fsaverage脑图批处理
+%% 多人四频段wPLI与fsaverage脑图批处理
 % GitHub发布版：默认扫描全部记录但不计算。
 % 首次使用先检查扫描表，再运行少量预实验，最后才运行全量数据。
 % 每条记录独立计算和保存，不跨被试合并试次。
@@ -124,6 +124,7 @@ records.result_mat = strings(height(records), 1);
 records.brain_png = strings(height(records), 1);
 records.total_channel_count = nan(height(records), 1);
 records.eeg_channel_count = nan(height(records), 1);
+records.band_count = nan(height(records), 1);
 
 progress_csv = fullfile(output_root, '批处理进度与错误.csv');
 writetable(records, progress_csv, 'Encoding', 'UTF-8');
@@ -195,9 +196,37 @@ for k = 1:height(records)
     expected_mat = fullfile(current_output, [expected_prefix, '.mat']);
     expected_brain = fullfile(current_output, ...
         [expected_prefix, '_fsaverage脑表面.png']);
+    expected_mapping = fullfile(current_output, ...
+        [expected_prefix, '_fsaverage节点映射.mat']);
 
-    if ~overwrite_existing && isfile(expected_mat) ...
-            && (~make_brain_images || isfile(expected_brain))
+    % v0.1.x结果只有theta/alpha。旧MAT或旧脑图不能作为四频段完整结果跳过。
+    existing_mat_complete = false;
+    existing_brain_complete = ~make_brain_images;
+    if isfile(expected_mat)
+        try
+            mat_variables = whos('-file', expected_mat);
+            variable_names = {mat_variables.name};
+            required_matrices = {'delta_matrix', 'theta_matrix', ...
+                'alpha_matrix', 'beta_matrix'};
+            existing_mat_complete = all(ismember(required_matrices, variable_names));
+        catch
+            existing_mat_complete = false;
+        end
+    end
+    if make_brain_images && isfile(expected_brain) && isfile(expected_mapping)
+        try
+            mapping_variables = whos('-file', expected_mapping);
+            mapping_names = {mapping_variables.name};
+            if ismember('band_names', mapping_names)
+                mapping_info = load(expected_mapping, 'band_names');
+                existing_brain_complete = numel(mapping_info.band_names) == 4;
+            end
+        catch
+            existing_brain_complete = false;
+        end
+    end
+
+    if ~overwrite_existing && existing_mat_complete && existing_brain_complete
         if eeg_channel_count == 59
             records.status(k) = "跳过-已有59导结果";
             records.message(k) = ...
@@ -206,6 +235,7 @@ for k = 1:height(records)
             records.status(k) = "跳过-已有结果";
         end
         records.result_mat(k) = string(expected_mat);
+        records.band_count(k) = 4;
         if isfile(expected_brain)
             records.brain_png(k) = string(expected_brain);
         end
@@ -215,10 +245,16 @@ for k = 1:height(records)
     end
 
     try
-        [mat_path, ~] = compute_one_subject_wpli( ...
-            char(records.fif_path(k)), current_output, ...
-            current_subject, current_phase, current_event_prefix, fieldtrip_dir);
+        if ~overwrite_existing && existing_mat_complete
+            mat_path = expected_mat;
+            fprintf('复用已有四频段MAT，仅补绘缺失或旧版脑图。\n');
+        else
+            [mat_path, ~] = compute_one_subject_wpli( ...
+                char(records.fif_path(k)), current_output, ...
+                current_subject, current_phase, current_event_prefix, fieldtrip_dir);
+        end
         records.result_mat(k) = string(mat_path);
+        records.band_count(k) = 4;
 
         if make_brain_images
             [brain_png, ~] = render_one_wpli_fsaverage( ...
