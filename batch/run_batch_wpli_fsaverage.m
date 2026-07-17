@@ -1,7 +1,7 @@
 %% 多人四频段wPLI与fsaverage脑图批处理
 % GitHub发布版：默认扫描全部记录但不计算。
 % 首次使用先检查扫描表，再运行少量预实验，最后才运行全量数据。
-% 每条记录独立计算和保存，不跨被试合并试次。
+% 每个被试、阶段和O/S条件独立计算和保存，不混合条件或跨被试合并试次。
 
 clear;
 clc;
@@ -22,8 +22,8 @@ run_mode = 'all';       % 'all'扫描/全量；'pilot'仅运行前pilot_count条
 pilot_count = 4;
 scan_only = true;      % 第一次必须保持true，只生成清单，不计算
 phases_to_run = {'phase1', 'phase2', 'phase3'};
-event_prefix_phase13 = 'O'; % phase1和phase3使用O1-O6
-event_prefix_phase2 = 'P';  % phase2默认P；扫描markers.csv后按每条记录自动识别O/P
+condition_prefixes = {'O', 'S'}; % 有O/S时分别计算，不合并两类试次
+legacy_fallback_prefix = 'P';    % 仅含P事件的旧phase2记录继续按P计算
 make_brain_images = true;
 n_edges_to_plot = 20;
 overwrite_existing = false;
@@ -53,6 +53,9 @@ fif_path = strings(0, 1);
 marker_path = strings(0, 1);
 record_output = strings(0, 1);
 record_event_prefix = strings(0, 1);
+marker_event_count = zeros(0, 1);
+condition_rule = strings(0, 1);
+n_phase_records = 0;
 
 for k = 1:numel(files)
     current_fif = fullfile(files(k).folder, files(k).name);
@@ -66,50 +69,67 @@ for k = 1:numel(files)
         continue;
     end
 
-    cohort(end + 1, 1) = string(current_cohort); %#ok<SAGROW>
-    subject(end + 1, 1) = string(current_subject); %#ok<SAGROW>
-    phase(end + 1, 1) = string(current_phase); %#ok<SAGROW>
-    fif_path(end + 1, 1) = string(current_fif); %#ok<SAGROW>
     current_marker = fullfile(phase_dir, '1.1_标签清洗', 'markers.csv');
-    marker_path(end + 1, 1) = string(current_marker); %#ok<SAGROW>
-    record_output(end + 1, 1) = string(fullfile( ...
-        output_root, current_cohort, current_subject, current_phase)); %#ok<SAGROW>
-    if strcmp(current_phase, 'phase2')
-        current_prefix = event_prefix_phase2;
-        if isfile(current_marker)
-            marker_text = fileread(current_marker);
-            has_o_events = contains(marker_text, 'O1');
-            has_p_events = contains(marker_text, 'P1');
-            if has_o_events && ~has_p_events
-                current_prefix = 'O';
-            elseif has_p_events && ~has_o_events
-                current_prefix = 'P';
-            end
-        end
-        record_event_prefix(end + 1, 1) = string(current_prefix); %#ok<SAGROW>
+    marker_text = '';
+    if isfile(current_marker)
+        marker_text = fileread(current_marker);
+    end
+    n_phase_records = n_phase_records + 1;
+
+    requested_counts = zeros(1, numel(condition_prefixes));
+    for condition_idx = 1:numel(condition_prefixes)
+        requested_counts(condition_idx) = count_condition_events( ...
+            marker_text, condition_prefixes{condition_idx});
+    end
+    fallback_count = count_condition_events(marker_text, legacy_fallback_prefix);
+    if ~any(requested_counts) && fallback_count > 0
+        current_condition_prefixes = {legacy_fallback_prefix};
+        current_condition_rule = "仅P事件回退";
     else
-        record_event_prefix(end + 1, 1) = string(event_prefix_phase13); %#ok<SAGROW>
+        current_condition_prefixes = condition_prefixes;
+        current_condition_rule = "O/S双条件";
+    end
+
+    for condition_idx = 1:numel(current_condition_prefixes)
+        current_prefix = current_condition_prefixes{condition_idx};
+        cohort(end + 1, 1) = string(current_cohort); %#ok<SAGROW>
+        subject(end + 1, 1) = string(current_subject); %#ok<SAGROW>
+        phase(end + 1, 1) = string(current_phase); %#ok<SAGROW>
+        fif_path(end + 1, 1) = string(current_fif); %#ok<SAGROW>
+        marker_path(end + 1, 1) = string(current_marker); %#ok<SAGROW>
+        record_output(end + 1, 1) = string(fullfile( ...
+            output_root, current_cohort, current_subject, current_phase)); %#ok<SAGROW>
+        record_event_prefix(end + 1, 1) = string(current_prefix); %#ok<SAGROW>
+        marker_event_count(end + 1, 1) = count_condition_events( ...
+            marker_text, current_prefix); %#ok<SAGROW>
+        condition_rule(end + 1, 1) = current_condition_rule; %#ok<SAGROW>
     end
 end
 
 records = table(cohort, subject, phase, record_event_prefix, ...
-    fif_path, marker_path, record_output);
-records = sortrows(records, {'cohort', 'subject', 'phase'});
+    marker_event_count, condition_rule, fif_path, marker_path, record_output);
+records = sortrows(records, ...
+    {'cohort', 'subject', 'phase', 'record_event_prefix'});
 assert(~isempty(records), '筛选phase后没有可运行记录。');
 
-% 标记同一组别、同一被试是否同时具有phase1和phase3。
+% 按同一组别、同一被试和同一条件标记是否同时具有phase1和phase3。
 records.has_phase1 = false(height(records), 1);
 records.has_phase3 = false(height(records), 1);
 records.paired_phase1_phase3 = false(height(records), 1);
 for k = 1:height(records)
-    same_subject = records.cohort == records.cohort(k) ...
-        & records.subject == records.subject(k);
-    records.has_phase1(k) = any(records.phase(same_subject) == "phase1");
-    records.has_phase3(k) = any(records.phase(same_subject) == "phase3");
+    same_subject_condition = records.cohort == records.cohort(k) ...
+        & records.subject == records.subject(k) ...
+        & records.record_event_prefix == records.record_event_prefix(k);
+    records.has_phase1(k) = any( ...
+        records.phase(same_subject_condition) == "phase1");
+    records.has_phase3(k) = any( ...
+        records.phase(same_subject_condition) == "phase3");
     records.paired_phase1_phase3(k) = ...
         records.has_phase1(k) && records.has_phase3(k);
 end
-n_phase_records = height(records);
+n_condition_records = height(records);
+n_p_fallback_records = sum(records.record_event_prefix == ...
+    string(legacy_fallback_prefix));
 
 if strcmpi(run_mode, 'pilot')
     records = records(1:min(pilot_count, height(records)), :);
@@ -128,9 +148,10 @@ records.band_count = nan(height(records), 1);
 
 progress_csv = fullfile(output_root, '批处理进度与错误.csv');
 writetable(records, progress_csv, 'Encoding', 'UTF-8');
-fprintf('共准备运行%d条记录，模式：%s。\n', height(records), run_mode);
-fprintf('全部ica_clean.fif共%d条；当前阶段筛选后%d条。\n', ...
-    numel(files), n_phase_records);
+fprintf('共准备运行%d条条件记录，模式：%s。\n', height(records), run_mode);
+fprintf(['全部ica_clean.fif共%d条；当前阶段筛选后%d条；', ...
+    '按O/S展开并保留P回退后%d条条件记录，其中P回退%d条。\n'], ...
+    numel(files), n_phase_records, n_condition_records, n_p_fallback_records);
 
 if scan_only
     fprintf(['当前scan_only=true：仅完成扫描，尚未计算。\n', ...
@@ -140,8 +161,9 @@ end
 
 %% 4. 逐条计算；每完成一条就更新CSV
 for k = 1:height(records)
-    fprintf('\n[%d/%d] %s / %s / %s\n', k, height(records), ...
-        records.cohort(k), records.subject(k), records.phase(k));
+    fprintf('\n[%d/%d] %s / %s / %s / 条件%s\n', k, height(records), ...
+        records.cohort(k), records.subject(k), records.phase(k), ...
+        records.record_event_prefix(k));
     started = tic;
 
     % 先审查通道数。59导和64导均按原始节点集合计算，不补导或删导；
@@ -182,6 +204,16 @@ for k = 1:height(records)
     if ~isfile(records.marker_path(k))
         records.status(k) = "失败";
         records.message(k) = "缺少markers.csv";
+        records.elapsed_sec(k) = toc(started);
+        writetable(records, progress_csv, 'Encoding', 'UTF-8');
+        continue;
+    end
+
+    if records.marker_event_count(k) == 0
+        records.status(k) = "失败-缺少条件事件";
+        records.message(k) = sprintf( ...
+            'markers.csv中没有检测到%s1-%s6事件；另一条件仍可独立运行。', ...
+            records.record_event_prefix(k), records.record_event_prefix(k));
         records.elapsed_sec(k) = toc(started);
         writetable(records, progress_csv, 'Encoding', 'UTF-8');
         continue;
@@ -287,3 +319,15 @@ summary_csv = fullfile(output_root, '批处理最终汇总.csv');
 writetable(records, summary_csv, 'Encoding', 'UTF-8');
 fprintf('\n批处理结束。\n进度表：%s\n汇总表：%s\n', progress_csv, summary_csv);
 disp(groupsummary(records, 'status'));
+
+%% 局部函数
+function event_count = count_condition_events(marker_text, event_prefix)
+    if isempty(marker_text)
+        event_count = 0;
+        return;
+    end
+    expression = ['(?<![A-Za-z0-9])', upper(event_prefix), ...
+        '[1-6](?![0-9])'];
+    matches = regexp(upper(marker_text), expression, 'match');
+    event_count = numel(matches);
+end

@@ -8,6 +8,7 @@ the strongest connections on the FreeSurfer fsaverage cortical surface.
 
 - Continuous MNE FIF input with a marker CSV fallback.
 - Three-column and four-column marker-table support.
+- Separate O1-O6 and S1-S6 connectivity estimates for every subject and phase.
 - Event-locked 0.5-2.5 s epochs.
 - Peak-to-peak trial rejection and deterministic trial selection.
 - DPSS multitaper Fourier estimates.
@@ -19,6 +20,11 @@ the strongest connections on the FreeSurfer fsaverage cortical surface.
 Band-edge bins are assigned once: intervals are lower-inclusive and
 upper-exclusive, except beta includes 30 Hz. Existing v0.1.x theta/alpha MAT
 files are detected as incomplete and recomputed by the batch pipeline.
+O and S trials are never pooled into one connectivity matrix. Batch rows are
+expanded by phase and condition, so each input phase normally produces two
+independent result sets.
+Legacy phase2 files that contain P events but no O/S events retain a single P
+condition run; the pipeline never invents missing O or S trials.
 
 ## Important limitation
 

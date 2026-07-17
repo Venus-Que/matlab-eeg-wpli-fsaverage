@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 - 2026-07-17
+
+- Expanded every subject-phase record into separate O1-O6 and S1-S6 condition runs.
+- Kept O and S epochs, matrices and figures independent throughout the pipeline.
+- Added per-condition marker event counts and an explicit missing-condition status.
+- Updated the single-subject example to generate both condition result sets.
+- Preserved P-only legacy phase2 records as explicit fallback condition runs.
+
 ## 0.2.0 - 2026-07-17
 
 - Expanded spectral connectivity from theta/alpha to delta, theta, alpha and beta.

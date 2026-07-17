@@ -13,6 +13,7 @@ English summary: [README_EN.md](README_EN.md)
 - 从连续MNE FIF读取59导或64导EEG。
 - 当FieldTrip无法读取MNE annotations时，自动导入`markers.csv`。
 - 兼容3列和4列事件表。
+- 对含O/S事件的被试阶段分别计算O1-O6和S1-S6，两类试次不会混入同一矩阵；仅含P事件的旧phase2记录继续按P计算。
 - 事件后0.5-2.5秒分段、线性去趋势和峰峰值质量控制。
 - 固定随机种子选择相同数量的合格试次。
 - 减去跨试次诱发平均，降低共同事件锁定成分。
@@ -20,6 +21,7 @@ English summary: [README_EN.md](README_EN.md)
 - 输出delta（1-4 Hz）、theta（4-8 Hz）、alpha（8-13 Hz）和beta（13-30 Hz）连接矩阵，矩阵大小与EEG导数一致。
 - 输出矩阵图、二维网络图和fsaverage三维投影图。
 - 批处理支持扫描、预实验、全量运行、断点续跑及错误记录。
+- 批处理清单按“阶段×条件”展开，并记录条件来源和每个条件的事件数量。
 - 59导记录可以生成59x59矩阵和图片，图标题及CSV会标注“仅个体展示”。
 - 导数按输入FIF中的实际EEG通道保留，不补导、不删导、不对连接矩阵补零或插值。
 - 除59导、64导外的记录自动标记为`跳过-不支持的导数`。
@@ -85,6 +87,8 @@ fsaverage_dir = 'path/to/fsaverage';
 subject_id = 'sub-001';
 ```
 
+示例脚本默认依次运行`condition_prefixes = {'O', 'S'}`，在同一输出目录生成两套互不覆盖的结果。
+
 ### 3. 批处理
 
 打开`batch/run_batch_wpli_fsaverage.m`，填写四个目录。第一次保持：
@@ -101,6 +105,8 @@ run_mode = 'pilot';
 pilot_count = 4;
 scan_only = false;
 ```
+
+`pilot_count`按条件记录计数；含O/S的同一被试同一阶段共占2条，仅P回退阶段占1条。
 
 预实验通过后再全量运行：
 
@@ -137,6 +143,10 @@ sub-001_phase1_O_去偏平方wPLI.mat
 sub-001_phase1_O_去偏平方wPLI.png
 sub-001_phase1_O_去偏平方wPLI_fsaverage脑表面.png
 sub-001_phase1_O_去偏平方wPLI_fsaverage节点映射.mat
+sub-001_phase1_S_去偏平方wPLI.mat
+sub-001_phase1_S_去偏平方wPLI.png
+sub-001_phase1_S_去偏平方wPLI_fsaverage脑表面.png
+sub-001_phase1_S_去偏平方wPLI_fsaverage节点映射.mat
 ```
 
 MAT文件同时保存`delta_matrix`、`theta_matrix`、`alpha_matrix`和`beta_matrix`，并保留旧版下游程序常用的`theta_matrix`、`alpha_matrix`变量名。二维PNG上排为四个连接矩阵，下排为四个最强连接网络；fsaverage PNG为2×2四频段脑表面图。
@@ -144,6 +154,10 @@ MAT文件同时保存`delta_matrix`、`theta_matrix`、`alpha_matrix`和`beta_ma
 从v0.1.x升级后，旧MAT只有theta/alpha。批处理会检查四个矩阵字段；即使`overwrite_existing=false`，旧双频段结果也会自动重新计算，不会被误判为完整结果。
 
 批处理另生成进度表和最终汇总表，记录成功、失败、已有结果跳过、59导个体展示及不支持导数跳过。
+
+O与S代表两套独立条件结果。后续可以在同一被试内进行O-S配对比较，但不得先把O、S试次合并后再计算一个矩阵。
+
+项目事件表只读审计显示：98个阶段文件同时含O和S，另有32个phase2文件仅含P而完全没有O/S。后者不能制造O/S结果，新版会保留为P条件计算，并在`condition_rule`列标记“仅P事件回退”。
 
 ## 重要解释边界
 

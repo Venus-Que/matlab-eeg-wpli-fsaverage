@@ -9,7 +9,7 @@ function [mat_path, png_path] = compute_one_subject_wpli( ...
 %   output_dir   - 当前记录的独立输出目录。
 %   subject_name - 脱敏后的被试ID，例如sub-001。
 %   phase_name   - 阶段名称，例如phase1。
-%   event_prefix - 事件前缀；O匹配O1-O6，P匹配P1-P6。
+%   event_prefix - 单个条件前缀；O匹配O1-O6，S匹配S1-S6；旧数据也可传P。
 %   fieldtrip_dir- FieldTrip根目录；已加载FieldTrip时可传空字符串。
 %
 % 输出参数：
@@ -25,6 +25,9 @@ end
 if nargin < 5 || isempty(event_prefix)
     event_prefix = 'O';
 end
+event_prefix = char(upper(strtrim(string(event_prefix))));
+assert(isscalar(event_prefix) && isstrprop(event_prefix, 'alpha'), ...
+    'event_prefix必须是单个英文字母，例如O或S。');
 assert(nargin >= 4, ...
     '必须提供input_fif、output_dir、subject_name和phase_name。');
 
