@@ -1,0 +1,38 @@
+# EEG/raw data: never commit participant data
+*.fif
+*.fdt
+*.set
+*.edf
+*.bdf
+*.vhdr
+*.vmrk
+*.eeg
+
+# Generated MATLAB and analysis outputs
+*.mat
+*.fig
+*.asv
+*.csv
+*.xls
+*.xlsx
+*.png
+*.zip
+*_去偏平方wPLI.png
+*_fsaverage脑表面.png
+*_fsaverage节点映射.mat
+批处理进度与错误.csv
+批处理最终汇总.csv
+
+# Local data/result directories
+data/
+output/
+results/
+fsaverage/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.m~
