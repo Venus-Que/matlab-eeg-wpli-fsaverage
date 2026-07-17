@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 - 2026-07-17
+
+- Validated the four required matrix variables directly from every output MAT file.
+- Replaced the hard-coded successful band count with the verified MAT field count.
+- Stopped a record immediately when an older two-band function is resolved by mistake.
+
 ## 0.3.0 - 2026-07-17
 
 - Expanded every subject-phase record into separate O1-O6 and S1-S6 condition runs.

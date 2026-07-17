@@ -230,6 +230,8 @@ for k = 1:height(records)
         [expected_prefix, '_fsaverage脑表面.png']);
     expected_mapping = fullfile(current_output, ...
         [expected_prefix, '_fsaverage节点映射.mat']);
+    required_matrices = {'delta_matrix', 'theta_matrix', ...
+        'alpha_matrix', 'beta_matrix'};
 
     % v0.1.x结果只有theta/alpha。旧MAT或旧脑图不能作为四频段完整结果跳过。
     existing_mat_complete = false;
@@ -238,8 +240,6 @@ for k = 1:height(records)
         try
             mat_variables = whos('-file', expected_mat);
             variable_names = {mat_variables.name};
-            required_matrices = {'delta_matrix', 'theta_matrix', ...
-                'alpha_matrix', 'beta_matrix'};
             existing_mat_complete = all(ismember(required_matrices, variable_names));
         catch
             existing_mat_complete = false;
@@ -286,7 +286,13 @@ for k = 1:height(records)
                 current_subject, current_phase, current_event_prefix, fieldtrip_dir);
         end
         records.result_mat(k) = string(mat_path);
-        records.band_count(k) = 4;
+        result_variables = whos('-file', mat_path);
+        result_variable_names = {result_variables.name};
+        records.band_count(k) = sum( ...
+            ismember(required_matrices, result_variable_names));
+        assert(records.band_count(k) == 4, ...
+            '结果MAT只检测到%d/4个频段矩阵，已停止该记录。', ...
+            records.band_count(k));
 
         if make_brain_images
             [brain_png, ~] = render_one_wpli_fsaverage( ...
